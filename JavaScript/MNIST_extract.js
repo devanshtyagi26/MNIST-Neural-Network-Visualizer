@@ -14,35 +14,35 @@ function loadMNIST(callback) {
 }
 
 async function loadFile(file) {
-  let buffer = await fetch(file).then((r) => r.arrayBuffer());
-  let headerCount = 4;
-  let headerView = new DataView(buffer, 0, 4 * headerCount);
-  let headers = new Array(headerCount)
+  const buffer = await fetch(file).then((response) => response.arrayBuffer());
+  const headerCount = 4;
+  const headerView = new DataView(buffer, 0, headerCount * 4);
+  const headers = new Array(headerCount)
     .fill()
     .map((_, i) => headerView.getUint32(4 * i, false));
 
-  // Get file type from the magic number
+  // Identify the file type and calculate offsets
   let type, dataLength;
-  if (headers[0] == 2049) {
-    type = "label";
-    dataLength = 1;
-    headerCount = 2;
-  } else if (headers[0] == 2051) {
-    type = "image";
-    dataLength = headers[2] * headers[3];
+  if (headers[0] === 2049) {
+    type = "label"; // Labels file
+    dataLength = 1; // Each label is 1 byte
+  } else if (headers[0] === 2051) {
+    type = "image"; // Images file
+    dataLength = headers[2] * headers[3]; // Rows * Columns (pixels per image)
   } else {
-    throw new Error("Unknown file type " + headers[0]);
+    throw new Error("Unknown file type: " + headers[0]);
   }
 
-  let data = new Uint8Array(buffer, headerCount * 4);
-  if (type == "image") {
-    let dataArr = [];
-    for (let i = 0; i < headers[1]; i++) {
-      dataArr.push(data.subarray(dataLength * i, dataLength * (i + 1)));
-    }
-    return dataArr;
+  // Extract the data after the header
+  const rawData = new Uint8Array(buffer, headerCount * 4);
+
+  // If it's image data, no longer split it into subarrays
+  if (type === "image") {
+    return rawData; // Single Uint8Array containing all images
   }
-  return data;
+
+  // If it's label data, return as a single Uint8Array
+  return rawData;
 }
 
 export default loadMNIST;
