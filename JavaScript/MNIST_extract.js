@@ -1,48 +1,41 @@
 function loadMNIST(callback) {
   let mnist = {};
-  let files = {
+  const files = {
     train_images: "../Assets/MNIST Dataset/train-images.idx3-ubyte",
     train_labels: "../Assets/MNIST Dataset/train-labels.idx1-ubyte",
     test_images: "../Assets/MNIST Dataset/t10k-images.idx3-ubyte",
     test_labels: "../Assets/MNIST Dataset/t10k-labels.idx1-ubyte",
   };
+
   return Promise.all(
-    Object.keys(files).map(async (file) => {
-      mnist[file] = await loadFile(files[file]);
+    Object.keys(files).map(async (key) => {
+      mnist[key] = await loadFile(files[key]);
     })
   ).then(() => callback(mnist));
 }
 
 async function loadFile(file) {
   const buffer = await fetch(file).then((response) => response.arrayBuffer());
-  const headerCount = 4;
-  const headerView = new DataView(buffer, 0, headerCount * 4);
-  const headers = new Array(headerCount)
-    .fill()
-    .map((_, i) => headerView.getUint32(4 * i, false));
+  const view = new DataView(buffer);
 
-  // Identify the file type and calculate offsets
-  let type, dataLength;
-  if (headers[0] === 2049) {
-    type = "label"; // Labels file
-    dataLength = 1; // Each label is 1 byte
-  } else if (headers[0] === 2051) {
-    type = "image"; // Images file
-    dataLength = headers[2] * headers[3]; // Rows * Columns (pixels per image)
+  // Read the magic number to determine the file type
+  const magicNumber = view.getUint32(0, false); // Big-endian
+  let headerSize, dataOffset;
+
+  if (magicNumber === 2049) {
+    // Labels file
+    headerSize = 8; // Magic number (4 bytes) + Number of labels (4 bytes)
+    dataOffset = headerSize;
+  } else if (magicNumber === 2051) {
+    // Images file
+    headerSize = 16; // Magic number (4 bytes) + Number of images (4 bytes) + Rows (4 bytes) + Columns (4 bytes)
+    dataOffset = headerSize;
   } else {
-    throw new Error("Unknown file type: " + headers[0]);
+    throw new Error("Unknown file type: " + magicNumber);
   }
 
-  // Extract the data after the header
-  const rawData = new Uint8Array(buffer, headerCount * 4);
-
-  // If it's image data, no longer split it into subarrays
-  if (type === "image") {
-    return rawData; // Single Uint8Array containing all images
-  }
-
-  // If it's label data, return as a single Uint8Array
-  return rawData;
+  // Return the raw data as a single Uint8Array starting after the header
+  return new Uint8Array(buffer, dataOffset);
 }
 
 export default loadMNIST;
